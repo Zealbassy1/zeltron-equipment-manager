@@ -1,0 +1,38 @@
+{
+    "family": "zeltron-task",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "arn:aws:iam::827604626508:role/ecsTaskExecutionRole",
+    "containerDefinitions": [
+        {
+            "name": "zeltron-backend-container",
+            "image": "827604626508.dkr.ecr.us-west-2.amazonaws.com/zeltron-backend",
+            "portMappings": [
+                {
+                    "containerPort": 8000,
+                    "hostPort": 8000,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "2MvwrWx6NNxX56Nj3zzIhB6nx7HXP4l52PafyrmI",
+                    "value": "django-insecure-)4sp)wh6*o31y%q9cn$18fc!ww56tuvj4im=s9i19af&d#7^y%"
+                },
+                {
+                    "name": "DATABASE_URL",
+                    "value": "mongodb+srv://deluxedegreat:IfzYjxJYqgPTQAeq@cluster0.0tq9xin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+                },
+                {
+                    "name": "ALLOWED_HOSTS",
+                    "value": "34.220.32.136, zeltron-alb-300340111.us-west-2.elb.amazonaws.com"
+                }
+            ]
+        }
+    ]
+}
