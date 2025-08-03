@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zeltron Equipment Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .leaflet-container { height: 60vh; width: 100%; border-radius: 0.75rem; z-index: 0; }
+        html.dark .leaflet-tile-pane { filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7); }
+        .map-popup-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; }
+        .map-popup-info { font-size: 0.9rem; color: #555; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
+        html.dark .custom-scrollbar::-webkit-scrollbar-track { background: #2d3748; }
+        html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; }
+        html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #718096; }
+    </style>
+</head>
+<body class="bg-yellow-50 dark:bg-gray-900">
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- SVG Icons ---
+        const HomeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>;
+        const TruckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 2h8a1 1 0 001-1z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h2a1 1 0 001-1V7a1 1 0 00-1-1h-2" /></svg>;
+        const ClipboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>;
+        const UsersIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197" /></svg>;
+        const MapIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 16.382V5.618a1 1 0 00-1.447-.894L15 7m-6 13v- hükümet" /></svg>;
+        const WrenchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>;
+        const LogoutIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>;
+        const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>;
+        const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6.343 17.657l-2.828 2.828M20.343 3.657l-2.828 2.828M12 21v-4M21 12h-4M17.657 6.343l-2.828-2.828M6.343 6.343l2.828 2.828" /></svg>;
+        const InfoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+        const SupportIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 0a5 5 0 10-7.07 7.071 5 5 0 007.07-7.071zm-3.536 0l3.536-3.536" /></svg>;
+        const FaqIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+
+
+        const StatusBadge = ({ status }) => {
+            const statusStyles = {
+                available: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+                deployed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+                maintenance: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+                active: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+                completed: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+                'on_leave': 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+                inactive: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
+            };
+            const style = statusStyles[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+            return <span className={`px-3 py-1 text-xs font-semibold rounded-full ${style}`}>{status ? status.replace('_', ' ').charAt(0).toUpperCase() + status.replace('_', ' ').slice(1) : 'Unknown'}</span>;
+        };
+        
+        // --- All Modals ---
+        const CreateJobModal = ({ isOpen, onClose, authToken, onActionSuccess }) => {
+            const [jobName, setJobName] = useState('');
+            const [siteLocation, setSiteLocation] = useState('');
+            const [selectedEquipment, setSelectedEquipment] = useState([]);
+            const [selectedPersonnel, setSelectedPersonnel] = useState([]);
+            const [availableEquipment, setAvailableEquipment] = useState([]);
+            const [availablePersonnel, setAvailablePersonnel] = useState([]);
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                if (isOpen) {
+                    const fetchData = async () => {
+                        setLoading(true);
+                        try {
+                            const [equipRes, personnelRes] = await Promise.all([
+                                fetch('http://127.0.0.1:8000/api/equipment/', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+                                fetch('http://127.0.0.1:8000/api/personnel/', { headers: { 'Authorization': `Bearer ${authToken}` } })
+                            ]);
+                            const equipData = await equipRes.json();
+                            const personnelData = await personnelRes.json();
+                            setAvailableEquipment(equipData.filter(e => e.status === 'available'));
+                            setAvailablePersonnel(personnelData.filter(p => ['driver', 'operator'].includes(p.role) && p.status === 'available'));
+                        } catch (err) { setError("Failed to load selection data."); } 
+                        finally { setLoading(false); }
+                    };
+                    fetchData();
+                }
+            }, [isOpen, authToken]);
+
+            const handleToggleSelection = (id, list, setList) => {
+                setList(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!jobName || selectedEquipment.length === 0 || selectedPersonnel.length === 0) { 
+                    setError("Please fill all required fields and select at least one equipment and one person."); 
+                    return; 
+                }
+                setLoading(true);
+                try {
+                    const response = await fetch('http://127.0.0.1:8000/api/jobs/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                        body: JSON.stringify({ 
+                            job_name: jobName, 
+                            site_location: siteLocation, 
+                            equipment_ids: selectedEquipment, 
+                            personnel_ids: selectedPersonnel, 
+                            deployment_date: new Date().toISOString() 
+                        })
+                    });
+                    if (!response.ok) {
+                         const errData = await response.json();
+                         throw new Error(JSON.stringify(errData) || 'Failed to create job.');
+                    }
+                    onActionSuccess();
+                    onClose();
+                } catch (err) { setError(err.message); } 
+                finally { setLoading(false); }
+            };
+
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+                    <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-3xl">
+                        <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Create New Job</h2>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Job Name</label><input type="text" value={jobName} onChange={e => setJobName(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /></div>
+                            <div className="mb-6"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Site Location</label><input type="text" value={siteLocation} onChange={e => setSiteLocation(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /></div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div><h3 className="font-semibold mb-2 text-gray-800 dark:text-white">Assign Equipment</h3><div className="h-48 border dark:border-gray-600 rounded-lg p-2 overflow-y-auto custom-scrollbar">{availableEquipment.map(e => (<div key={e.id} className="flex items-center p-2 rounded hover:bg-yellow-100 dark:hover:bg-gray-700"><input type="checkbox" id={`equip-${e.id}`} checked={selectedEquipment.includes(e.id)} onChange={() => handleToggleSelection(e.id, selectedEquipment, setSelectedEquipment)} className="h-4 w-4 rounded text-yellow-500 focus:ring-yellow-500" /><label htmlFor={`equip-${e.id}`} className="ml-3 text-sm text-gray-700 dark:text-gray-300">{e.name} ({e.identifier})</label></div>))}</div></div>
+                                <div><h3 className="font-semibold mb-2 text-gray-800 dark:text-white">Assign Personnel</h3><div className="h-48 border dark:border-gray-600 rounded-lg p-2 overflow-y-auto custom-scrollbar">{availablePersonnel.map(p => (<div key={p.id} className="flex items-center p-2 rounded hover:bg-yellow-100 dark:hover:bg-gray-700"><input type="checkbox" id={`person-${p.id}`} checked={selectedPersonnel.includes(p.id)} onChange={() => handleToggleSelection(p.id, selectedPersonnel, setSelectedPersonnel)} className="h-4 w-4 rounded text-yellow-500 focus:ring-yellow-500" /><label htmlFor={`person-${p.id}`} className="ml-3 text-sm text-gray-700 dark:text-gray-300">{p.user_full_name} <span className="text-xs text-gray-500 capitalize">({p.role})</span></label></div>))}</div></div>
+                            </div>
+                            {error && <p className="text-red-500 text-center text-sm my-4">{error}</p>}
+                            <div className="flex justify-end gap-4 mt-8"><button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition">Cancel</button><button type="submit" disabled={loading} className="px-6 py-2 rounded-lg bg-yellow-500 text-gray-900 hover:bg-yellow-600 font-semibold disabled:bg-yellow-300 transition">{loading ? 'Creating...' : 'Create Job'}</button></div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+        const CreateEquipmentModal = ({ isOpen, onClose, authToken, onActionSuccess }) => {
+            const [name, setName] = useState('');
+            const [identifier, setIdentifier] = useState('');
+            const [type, setType] = useState('bulldozer');
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+                if (!name || !identifier) { setError("Name and Identifier are required."); return; }
+                setLoading(true);
+                const newEquipmentData = { name, identifier, type, status: 'available' };
+                try {
+                    const response = await fetch('http://127.0.0.1:8000/api/equipment/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                        body: JSON.stringify(newEquipmentData)
+                    });
+                    if (!response.ok) throw new Error('Failed to create equipment.');
+                    onActionSuccess();
+                    onClose();
+                } catch (err) { setError(err.message); } finally { setLoading(false); }
+            };
+
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"><div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg"><h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Add New Equipment</h2><form onSubmit={handleSubmit}><div className="mb-4"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Equipment Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /></div><div className="mb-4"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Identifier</label><input type="text" value={identifier} onChange={e => setIdentifier(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /></div><div className="mb-6"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Type</label><select value={type} onChange={e => setType(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"><option value="bulldozer">Bulldozer</option><option value="excavator">Excavator</option><option value="payloader">Payloader</option><option value="crane">Crane</option><option value="backhoe">Backhoe</option><option value="truck">Truck</option></select></div>{error && <p className="text-red-500 text-center text-sm mb-4">{error}</p>}<div className="flex justify-end gap-4 mt-8"><button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition">Cancel</button><button type="submit" disabled={loading} className="px-6 py-2 rounded-lg bg-yellow-500 text-gray-900 hover:bg-yellow-600 font-semibold disabled:bg-yellow-300 transition">{loading ? 'Creating...' : 'Add Equipment'}</button></div></form></div></div>
+            );
+        };
+        const CreatePersonnelModal = ({ isOpen, onClose, authToken, onActionSuccess }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [email, setEmail] = useState('');
+            const [firstName, setFirstName] = useState('');
+            const [lastName, setLastName] = useState('');
+            const [role, setRole] = useState('driver');
+            const [contactNumber, setContactNumber] = useState('');
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!username || !password || !email) { setError("Username, Password, and Email are required."); return; }
+                setLoading(true);
+                const newPersonnelData = { username, password, email, first_name: firstName, last_name: lastName, role, contact_number: contactNumber };
+                try {
+                    const response = await fetch('http://127.0.0.1:8000/api/personnel/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                        body: JSON.stringify(newPersonnelData)
+                    });
+                    if (!response.ok) throw new Error('Failed to create personnel.');
+                    onActionSuccess();
+                    onClose();
+                } catch (err) { setError(err.message); } finally { setLoading(false); }
+            };
+
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"><div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg"><h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Add New Personnel</h2><form onSubmit={handleSubmit}><div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><input type="text" placeholder="Username*" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /><input type="password" placeholder="Password*" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /></div><div className="mb-4"><input type="email" placeholder="Email Address*" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><input type="text" placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /><input type="text" placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"><select value={role} onChange={e => setRole(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"><option value="driver">Driver</option><option value="mechanic">Mechanic</option><option value="operator">Operator</option><option value="manager">Manager</option><option value="admin">Admin</option></select><input type="text" placeholder="Contact Number" value={contactNumber} onChange={e => setContactNumber(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" /></div>{error && <p className="text-red-500 text-center text-sm mb-4">{error}</p>}<div className="flex justify-end gap-4 mt-8"><button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition">Cancel</button><button type="submit" disabled={loading} className="px-6 py-2 rounded-lg bg-yellow-500 text-gray-900 hover:bg-yellow-600 font-semibold disabled:bg-yellow-300 transition">{loading ? 'Creating...' : 'Add Personnel'}</button></div></form></div></div>
+            );
+        };
+        const LogMaintenanceModal = ({ isOpen, onClose, authToken, onActionSuccess }) => {
+            const [equipmentId, setEquipmentId] = useState('');
+            const [mechanicId, setMechanicId] = useState('');
+            const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0]);
+            const [serviceType, setServiceType] = useState('routine_check');
+            const [notes, setNotes] = useState('');
+            const [equipmentList, setEquipmentList] = useState([]);
+            const [mechanics, setMechanics] = useState([]);
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                if (isOpen) {
+                    const fetchData = async () => {
+                        try {
+                            const [equipRes, personnelRes] = await Promise.all([
+                                fetch('http://127.0.0.1:8000/api/equipment/', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+                                fetch('http://127.0.0.1:8000/api/personnel/', { headers: { 'Authorization': `Bearer ${authToken}` } })
+                            ]);
+                            const equipData = await equipRes.json();
+                            const personnelData = await personnelRes.json();
+                            setEquipmentList(equipData);
+                            setMechanics(personnelData.filter(p => p.role === 'mechanic'));
+                        } catch (err) { setError("Failed to load data."); }
+                    };
+                    fetchData();
+                }
+            }, [isOpen, authToken]);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if(!equipmentId || !mechanicId || !serviceDate) { setError("Please fill all required fields."); return; }
+                setLoading(true);
+                const logData = { equipment: equipmentId, mechanic: mechanicId, service_date: serviceDate, service_type: serviceType, notes };
+                 try {
+                    const response = await fetch('http://127.0.0.1:8000/api/maintenance/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                        body: JSON.stringify(logData)
+                    });
+                    if (!response.ok) throw new Error('Failed to create log.');
+                    onActionSuccess();
+                    onClose();
+                } catch (err) { setError(err.message); } finally { setLoading(false); }
+            };
+
+            if (!isOpen) return null;
+            return (
+                 <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"><div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg"><h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Log Maintenance Service</h2><form onSubmit={handleSubmit}><div className="mb-4"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Equipment</label><select value={equipmentId} onChange={e => setEquipmentId(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"><option value="">Select Equipment</option>{equipmentList.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div><div className="mb-4"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Mechanic</label><select value={mechanicId} onChange={e => setMechanicId(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"><option value="">Select Mechanic</option>{mechanics.map(m => <option key={m.id} value={m.id}>{m.user_full_name}</option>)}</select></div><div className="mb-4"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Service Date</label><input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"/></div><div className="mb-4"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Service Type</label><select value={serviceType} onChange={e => setServiceType(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"><option value="routine_check">Routine Check</option><option value="oil_change">Oil Change</option><option value="engine_repair">Engine Repair</option><option value="hydraulic_fix">Hydraulic System Fix</option><option value="other">Other</option></select></div><div className="mb-6"><label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Notes</label><textarea value={notes} onChange={e => setNotes(e.target.value)} rows="3" className="w-full px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-white border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"></textarea></div>{error && <p className="text-red-500 text-center text-sm mb-4">{error}</p>}<div className="flex justify-end gap-4 mt-8"><button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition">Cancel</button><button type="submit" disabled={loading} className="px-6 py-2 rounded-lg bg-yellow-500 text-gray-900 hover:bg-yellow-600 font-semibold disabled:bg-yellow-300 transition">{loading ? 'Logging...' : 'Log Service'}</button></div></form></div></div>
+            );
+        };
+        const MaintenanceDetailModal = ({ log, onClose }) => {
+            if (!log) return null;
+             return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+                    <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-2xl">
+                        <h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-white">Maintenance Details</h2>
+                        <p className="text-gray-500 dark:text-gray-400 mb-6">For {log.equipment_name} on {new Date(log.service_date).toLocaleDateString()}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"><div><span className="font-semibold text-gray-700 dark:text-gray-300">Mechanic:</span> {log.mechanic_name}</div><div><span className="font-semibold text-gray-700 dark:text-gray-300">Service Type:</span> <span className="capitalize">{log.service_type.replace('_', ' ')}</span></div><div><span className="font-semibold text-gray-700 dark:text-gray-300">Cost:</span> {log.cost ? `$${log.cost}`: 'N/A'}</div></div>
+                        <div className="space-y-4"><div><h3 className="font-semibold text-lg mb-2 text-gray-800 dark:text-white">Mechanic's Notes</h3><p className="text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">{log.notes || 'No notes provided.'}</p></div><div><h3 className="font-semibold text-lg mb-2 text-gray-800 dark:text-white flex items-center gap-2"><SparklesIcon/> AI Generated Summary</h3><p className="text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">{log.generated_summary || 'No summary available.'}</p></div></div>
+                        <div className="flex justify-end mt-8"><button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition">Close</button></div>
+                    </div>
+                </div>
+            );
+        };
+        const EquipmentDetailModal = ({ equipmentId, allEquipment, allJobs, allLogs, onClose }) => {
+            const [equipment, setEquipment] = useState(null);
+            const [jobHistory, setJobHistory] = useState([]);
+            const [serviceHistory, setServiceHistory] = useState([]);
+            
+            useEffect(() => {
+                if (equipmentId && allEquipment && allJobs && allLogs) {
+                    const selectedEquipment = allEquipment.find(e => e.id === equipmentId);
+                    if(selectedEquipment) {
+                        setEquipment(selectedEquipment);
+                        setJobHistory(allJobs.filter(j => j.equipment.some(e => e.id === equipmentId)));
+                        setServiceHistory(allLogs.filter(l => l.equipment === equipmentId));
+                    }
+                }
+            }, [equipmentId, allEquipment, allJobs, allLogs]);
+
+            if (!equipmentId || !equipment) return null;
+            return (
+                 <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"><div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-4xl"><h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-white">{equipment.name}</h2><p className="text-gray-500 dark:text-gray-400 mb-6">{equipment.identifier}</p><div className="grid grid-cols-1 lg:grid-cols-2 gap-8"><div><h3 className="font-bold text-lg mb-4 text-gray-800 dark:text-white">Job History</h3><div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">{jobHistory.length > 0 ? jobHistory.map(job => (<div key={job.id} className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg"><p className="font-semibold text-gray-800 dark:text-white">{job.job_name}</p><p className="text-sm text-gray-600 dark:text-gray-300">Team: {job.personnel.map(p=>p.user_full_name).join(', ')} | Status: <span className="capitalize">{job.status}</span></p></div>)) : <p className="text-gray-500 dark:text-gray-400">No job history.</p>}</div></div><div><h3 className="font-bold text-lg mb-4 text-gray-800 dark:text-white">Service History</h3><div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">{serviceHistory.length > 0 ? serviceHistory.map(log => (<div key={log.id} className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg"><p className="font-semibold text-gray-800 dark:text-white">{new Date(log.service_date).toLocaleDateString()} - <span className="capitalize">{log.service_type.replace('_',' ')}</span></p><p className="text-sm text-gray-600 dark:text-gray-300">Mechanic: {log.mechanic_name}</p></div>)) : <p className="text-gray-500 dark:text-gray-400">No service history.</p>}</div></div></div><div className="flex justify-end mt-8"><button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition">Close</button></div></div></div>
+            );
+        };
+        const PersonnelDetailModal = ({ personnelId, allPersonnel, allJobs, allLogs, onClose }) => {
+            const [person, setPerson] = useState(null);
+            const [jobHistory, setJobHistory] = useState([]);
+            const [serviceHistory, setServiceHistory] = useState([]);
+
+            useEffect(() => {
+                if (personnelId && allPersonnel && allJobs && allLogs) {
+                    const selectedPerson = allPersonnel.find(p => p.id === personnelId);
+                    if (selectedPerson) {
+                        setPerson(selectedPerson);
+                        setJobHistory(allJobs.filter(j => j.personnel.some(p => p.id === personnelId)));
+                        if (selectedPerson.role === 'mechanic') {
+                            setServiceHistory(allLogs.filter(l => l.mechanic === personnelId));
+                        } else { setServiceHistory([]); }
+                    }
+                }
+            }, [personnelId, allPersonnel, allJobs, allLogs]);
+
+            if (!personnelId || !person) return null;
+            return (
+                 <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"><div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-4xl"><h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-white">{person.user_full_name}</h2><p className="text-gray-500 dark:text-gray-400 mb-6 capitalize">{person.role} - {person.contact_number}</p><div className="grid grid-cols-1 lg:grid-cols-2 gap-8"><div><h3 className="font-bold text-lg mb-4 text-gray-800 dark:text-white">Job History</h3><div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">{jobHistory.length > 0 ? jobHistory.map(job => (<div key={job.id} className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg"><p className="font-semibold text-gray-800 dark:text-white">{job.job_name}</p><p className="text-sm text-gray-600 dark:text-gray-300">Equipment: {job.equipment.map(e=>e.name).join(', ')} | Status: <span className="capitalize">{job.status}</span></p></div>)) : <p className="text-gray-500 dark:text-gray-400">No job history for this user.</p>}</div></div>{person.role === 'mechanic' && (<div><h3 className="font-bold text-lg mb-4 text-gray-800 dark:text-white">Service History</h3><div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">{serviceHistory.length > 0 ? serviceHistory.map(log => (<div key={log.id} className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg"><p className="font-semibold text-gray-800 dark:text-white">{new Date(log.service_date).toLocaleDateString()} - <span className="capitalize">{log.service_type.replace('_',' ')}</span></p><p className="text-sm text-gray-600 dark:text-gray-300">For: {log.equipment_name}</p></div>)) : <p className="text-gray-500 dark:text-gray-400">No service history for this mechanic.</p>}</div></div>)}</div><div className="flex justify-end mt-8"><button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition">Close</button></div></div></div>
+            )
+        };
+        const JobDetailModal = ({ jobId, allJobs, allLogs, onClose }) => {
+            const [job, setJob] = useState(null);
+            const [serviceHistory, setServiceHistory] = useState([]);
+
+            useEffect(() => {
+                if (jobId && allJobs && allLogs) {
+                    const selectedJob = allJobs.find(j => j.id === jobId);
+                    if (selectedJob) {
+                        setJob(selectedJob);
+                        const jobStartDate = new Date(selectedJob.deployment_date);
+                        const jobEndDate = selectedJob.return_date ? new Date(selectedJob.return_date) : new Date();
+                        const relevantLogs = allLogs.filter(log => {
+                            const logDate = new Date(log.service_date);
+                            const equipmentIdsOnJob = selectedJob.equipment.map(e => e.id);
+                            return equipmentIdsOnJob.includes(log.equipment) && logDate >= jobStartDate && logDate <= jobEndDate;
+                        });
+                        setServiceHistory(relevantLogs);
+                    }
+                }
+            }, [jobId, allJobs, allLogs]);
+
+            if (!jobId || !job) return null;
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"><div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-3xl"><h2 className="text-2xl font-bold mb-2 text-gray-800 dark:text-white">{job.job_name}</h2><p className="text-gray-500 dark:text-gray-400 mb-6">{job.site_location}</p><div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 mb-6"><div><span className="font-semibold text-gray-700 dark:text-gray-300">Status:</span> <StatusBadge status={job.status} /></div><div><span className="font-semibold text-gray-700 dark:text-gray-300">Deployed:</span> {new Date(job.deployment_date).toLocaleString()}</div><div><span className="font-semibold text-gray-700 dark:text-gray-300">Equipment:</span> {job.equipment.map(e=>e.name).join(', ')}</div><div><span className="font-semibold text-gray-700 dark:text-gray-300">Team:</span> {job.personnel.map(p=>p.user_full_name).join(', ')}</div><div className="col-span-2"><span className="font-semibold text-gray-700 dark:text-gray-300">Completed:</span> {job.return_date ? new Date(job.return_date).toLocaleString() : 'Active'}</div></div><div><h3 className="font-bold text-lg mb-4 text-gray-800 dark:text-white">Maintenance During Job</h3><div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar">{serviceHistory.length > 0 ? serviceHistory.map(log => (<div key={log.id} className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg"><p className="font-semibold text-gray-800 dark:text-white">{new Date(log.service_date).toLocaleDateString()} - <span className="capitalize">{log.service_type.replace('_',' ')}</span></p><p className="text-sm text-gray-600 dark:text-gray-300">Mechanic: {log.mechanic_name}</p></div>)) : <p className="text-gray-500 dark:text-gray-400">No maintenance was logged during this job.</p>}</div></div><div className="flex justify-end mt-8"><button type="button" onClick={onClose} className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 font-semibold transition">Close</button></div></div></div>
+            );
+        };
+
+
+        // --- Page Components ---
+        const OverviewPage = ({ jobs, equipment }) => {
+             const activeJobs = (jobs || []).filter(j => j.status === 'active').length;
+             const availableEquipment = (equipment || []).filter(e => e.status === 'available').length;
+             const maintenanceEquipment = (equipment || []).filter(e => e.status === 'maintenance').length;
+
+            return (
+                <div><div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"><div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Active Jobs</h3><p className="text-3xl font-bold text-gray-800 dark:text-white mt-1">{activeJobs}</p></div><div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Equipment Available</h3><p className="text-3xl font-bold text-green-500 mt-1">{availableEquipment}</p></div><div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Under Maintenance</h3><p className="text-3xl font-bold text-yellow-500 mt-1">{maintenanceEquipment}</p></div></div></div>
+            );
+        };
+        
+        const LiveMapPage = ({ equipment, activeView }) => {
+            const mapContainerRef = useRef(null);
+            const mapInstanceRef = useRef(null);
+            const markersRef = useRef({});
+
+            useEffect(() => {
+                if (mapContainerRef.current && !mapInstanceRef.current) {
+                    mapInstanceRef.current = L.map(mapContainerRef.current).setView([6.465422, 3.406448], 12);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstanceRef.current);
+                }
+                if (mapInstanceRef.current && activeView === 'map') {
+                    setTimeout(() => mapInstanceRef.current.invalidateSize(), 100);
+                }
+            }, [activeView]);
+
+            useEffect(() => {
+                if (!mapInstanceRef.current || !equipment) return;
+                const equipmentWithLocation = equipment.filter(e => e.latitude != null && e.longitude != null);
+                
+                Object.keys(markersRef.current).forEach(id => {
+                    if (!equipmentWithLocation.find(e => e.id == id)) {
+                        mapInstanceRef.current.removeLayer(markersRef.current[id]);
+                        delete markersRef.current[id];
+                    }
+                });
+
+                equipmentWithLocation.forEach(e => {
+                    const popupContent = `<div class="map-popup-title">${e.name}</div><div class="map-popup-info">Status: <b>${e.status}</b></div>`;
+                    if (markersRef.current[e.id]) {
+                        markersRef.current[e.id].setLatLng([e.latitude, e.longitude]).getPopup().setContent(popupContent);
+                    } else {
+                        markersRef.current[e.id] = L.marker([e.latitude, e.longitude]).addTo(mapInstanceRef.current).bindPopup(popupContent);
+                    }
+                });
+            }, [equipment]);
+
+            return <div ref={mapContainerRef} className="leaflet-container"></div>;
+        };
+
+        const JobsPage = ({ jobs, user, authToken, onActionSuccess, onViewDetails }) => {
+            const canManage = user?.personnel?.role === 'admin' || user?.personnel?.role === 'manager';
+            const jobsToShow = canManage ? jobs : (jobs || []).filter(job => job.personnel.some(p => p.id === user?.personnel?.id));
+
+            const handleCompleteJob = async (jobId) => {
+                 try {
+                    const response = await fetch(`http://127.0.0.1:8000/api/jobs/${jobId}/`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}`},
+                        body: JSON.stringify({ status: 'completed', return_date: new Date().toISOString() })
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Failed to complete job.');
+                    }
+                    onActionSuccess();
+                } catch(error) {
+                    alert(`Error: ${error.message}`);
+                }
+            };
+
+            return (
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><table className="w-full text-left"><thead><tr className="border-b dark:border-gray-700"><th className="p-4 text-gray-500 dark:text-gray-400">Job</th><th className="p-4 text-gray-500 dark:text-gray-400">Team</th><th className="p-4 text-gray-500 dark:text-gray-400">Status</th><th className="p-4 text-gray-500 dark:text-gray-400">Actions</th></tr></thead><tbody>
+                    {(jobsToShow || []).map(job => (<tr key={job.id} className="border-b dark:border-gray-700"><td className="p-4 text-gray-800 dark:text-white font-semibold">{job.job_name}</td><td className="p-4 text-gray-600 dark:text-gray-300">{job.personnel.map(p => p.user_full_name).join(', ')}</td><td className="p-4"><StatusBadge status={job.status} /></td><td className="p-4 space-x-2"><button onClick={() => onViewDetails(job.id)} className="px-3 py-1 rounded-md bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-semibold hover:bg-gray-300 dark:hover:bg-gray-500 transition">View Details</button>{canManage && job.status === 'active' && (<button onClick={() => handleCompleteJob(job.id)} className="px-3 py-1 rounded-md bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition">Complete</button>)}</td></tr>))}</tbody></table></div>
+            );
+        };
+        const EquipmentPage = ({ equipment, onViewHistory }) => {
+             return <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><table className="w-full text-left"><thead><tr className="border-b dark:border-gray-700"><th className="p-4 text-gray-500 dark:text-gray-400">Identifier</th><th className="p-4 text-gray-500 dark:text-gray-400">Name</th><th className="p-4 text-gray-500 dark:text-gray-400">Status</th><th className="p-4 text-gray-500 dark:text-gray-400">Actions</th></tr></thead><tbody>
+                            {(equipment || []).map(item => (<tr key={item.id} className="border-b dark:border-gray-700"><td className="p-4 text-gray-800 dark:text-white font-semibold">{item.identifier}</td><td className="p-4 text-gray-600 dark:text-gray-300">{item.name}</td><td className="p-4"><StatusBadge status={item.status} /></td><td className="p-4"><button onClick={() => onViewHistory(item.id)} className="px-3 py-1 rounded-md bg-yellow-500 text-gray-900 text-xs font-semibold hover:bg-yellow-600 transition">View History</button></td></tr>))}</tbody></table></div>;
+        };
+        const PersonnelPage = ({ personnel, onViewHistory, onStatusChange, authToken }) => {
+            
+            const handleStatusChange = async (person, newStatus) => {
+                try {
+                    const response = await fetch(`http://127.0.0.1:8000/api/personnel/${person.id}/`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                     if (!response.ok) throw new Error('Failed to update status.');
+                    onStatusChange();
+                } catch(err) { alert(err.message); }
+            };
+
+            return <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><table className="w-full text-left"><thead><tr className="border-b dark:border-gray-700"><th className="p-4 text-gray-500 dark:text-gray-400">Name</th><th className="p-4 text-gray-500 dark:text-gray-400">Role</th><th className="p-4 text-gray-500 dark:text-gray-400">Status</th><th className="p-4 text-gray-500 dark:text-gray-400">Actions</th></tr></thead><tbody>
+                {(personnel || []).map(p => (<tr key={p.id} className="border-b dark:border-gray-700"><td className="p-4 text-gray-800 dark:text-white font-semibold">{p.user_full_name}</td><td className="p-4 text-gray-600 dark:text-gray-300 capitalize">{p.role}</td><td className="p-4"><StatusBadge status={p.status} /></td><td className="p-4 space-x-2"><button onClick={() => onViewHistory(p.id)} className="px-3 py-1 rounded-md bg-yellow-500 text-gray-900 text-xs font-semibold hover:bg-yellow-600 transition">History</button>{p.status === 'available' ? <button onClick={()=> handleStatusChange(p, 'inactive')} className="px-3 py-1 rounded-md bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition">Deactivate</button> : <button onClick={()=> handleStatusChange(p, 'available')} className="px-3 py-1 rounded-md bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition">Activate</button>}</td></tr>))}</tbody></table></div>;
+        };
+        const MaintenanceLogPage = ({ logs, onViewLog }) => {
+             return <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><table className="w-full text-left"><thead><tr className="border-b dark:border-gray-700"><th className="p-4 text-gray-500 dark:text-gray-400">Equipment</th><th className="p-4 text-gray-500 dark:text-gray-400">Mechanic</th><th className="p-4 text-gray-500 dark:text-gray-400">Date</th><th className="p-4 text-gray-500 dark:text-gray-400">Actions</th></tr></thead><tbody>
+                            {(logs || []).map(log => (<tr key={log.id} className="border-b dark:border-gray-700"><td className="p-4 text-gray-800 dark:text-white font-semibold">{log.equipment_name}</td><td className="p-4 text-gray-600 dark:text-gray-300">{log.mechanic_name}</td><td className="p-4 text-gray-600 dark:text-gray-300">{new Date(log.service_date).toLocaleDateString()}</td><td className="p-4"><button onClick={() => onViewLog(log)} className="px-3 py-1 rounded-md bg-yellow-500 text-gray-900 text-xs font-semibold hover:bg-yellow-600 transition">View Details</button></td></tr>))}</tbody></table></div>;
+        };
+        const AboutPage = () => <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-gray-700 dark:text-gray-300"> <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">About Zeltron Equipment Manager</h2> <p>This application is your all-in-one solution for managing heavy-duty equipment, personnel, jobs, and maintenance logs. Built with a powerful backend and an intuitive user interface, Zeltron helps you optimize your operations, track your assets in real-time, and make data-driven decisions.</p> </div>;
+        const SupportPage = () => <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-gray-700 dark:text-gray-300"> <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">Support</h2> <p>For any technical issues or questions, please contact our support team at <a href="mailto:support@zeltron.com" className="text-yellow-500 hover:underline">support@zeltron.com</a>.</p> </div>;
+        const FAQPage = () => <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-gray-700 dark:text-gray-300"> <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">Frequently Asked Questions</h2> <div className="space-y-4"><div><h3 className="font-semibold text-gray-800 dark:text-white">How do I add new equipment?</h3><p>Only users with the 'Admin' or 'Manager' role can add new equipment. Navigate to the Equipment tab and click the '+ New Equipment' button.</p></div><div><h3 className="font-semibold text-gray-800 dark:text-white">How does the live map work?</h3><p>The live map updates every 15 seconds to show the latest reported GPS location for each piece of equipment.</p></div></div> </div>;
+
+
+        // --- App Screens ---
+        const LoginPage = ({ onLogin }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setError('');
+                setLoading(true);
+                try {
+                    // NOTE: You need to add /api/token/ to your backend urls.py for JWT
+                    const tokenResponse = await fetch('http://127.0.0.1:8000/api/token/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+                    const tokenData = await tokenResponse.json();
+                    if (!tokenResponse.ok) throw new Error(tokenData.detail || 'Login failed.');
+                    const userResponse = await fetch('http://127.0.0.1:8000/api/users/me/', { headers: { 'Authorization': `Bearer ${tokenData.access}` } });
+                    const userData = await userResponse.json();
+                    if (!userResponse.ok) throw new Error('Could not fetch user profile.');
+                    onLogin(userData, tokenData.access);
+                } catch (err) { setError(`Login Failed: ${err.message}`); } finally { setLoading(false); }
+            };
+
+            return (
+                <div className="min-h-screen bg-yellow-400 flex flex-col justify-center items-center p-8"><div className="w-full max-w-md"><div className="text-center mb-8"><h1 className="text-5xl md:text-6xl font-extrabold text-gray-800 tracking-tight">Zeltron</h1><h2 className="text-2xl md:text-3xl font-bold text-gray-700">Equipment Manager</h2></div><div className="bg-white/90 backdrop-blur-sm p-8 rounded-2xl shadow-2xl"><form onSubmit={handleLogin}><div className="mb-4"><label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="username">Username</label><input id="username" className="w-full px-4 py-3 rounded-lg bg-gray-100 border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" placeholder="e.g., your_username" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" /></div><div className="mb-6"><label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">Password</label><input id="password" type="password" className="w-full px-4 py-3 rounded-lg bg-gray-100 border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-yellow-500 transition" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} /></div>{error && <p className="text-red-600 text-center text-sm mb-4">{error}</p>}<button type="submit" className={`w-full p-4 rounded-lg text-white font-bold text-lg bg-gray-800 hover:bg-black transition-transform transform hover:scale-105 ${loading ? 'opacity-50' : ''}`} disabled={loading}>{loading ? 'Signing In...' : 'Sign In'}</button></form></div></div></div>
+            );
+        };
+
+        const Dashboard = ({ user, authToken, onLogout }) => {
+            const [activeView, setActiveView] = useState('overview');
+            const [data, setData] = useState({ jobs: [], equipment: [], personnel: [], maintenanceLogs: [] });
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [modal, setModal] = useState(null);
+            const [viewingLog, setViewingLog] = useState(null);
+            const [viewingEquipmentId, setViewingEquipmentId] = useState(null);
+            const [viewingPersonnelId, setViewingPersonnelId] = useState(null);
+            const [viewingJobId, setViewingJobId] = useState(null);
+
+            const canManage = user?.personnel?.role === 'admin' || user?.personnel?.role === 'manager';
+
+            const fetchData = useCallback(async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                    const endpoints = ['jobs', 'equipment', 'maintenance'];
+                    if (canManage) endpoints.push('personnel');
+                    const responses = await Promise.all(endpoints.map(ep => fetch(`http://127.0.0.1:8000/api/${ep}/`, { headers: { 'Authorization': `Bearer ${authToken}` } })));
+                    for(const res of responses) { if (!res.ok) throw new Error('Network response was not ok'); }
+                    const [jobsData, equipmentData, maintData, personnelData] = await Promise.all(responses.map(res => res.json()));
+                    setData({ jobs: jobsData || [], equipment: equipmentData || [], maintenanceLogs: maintData || [], personnel: personnelData || [] });
+                } catch (e) { setError(e.message); } 
+                finally { setLoading(false); }
+            }, [authToken, canManage]);
+
+
+            useEffect(() => {
+                fetchData();
+            }, [fetchData]);
+
+            const NavLink = ({ view, icon, label }) => (<button onClick={() => setActiveView(view)} className={`flex items-center w-full text-left px-4 py-3 rounded-lg transition ${activeView === view ? 'bg-yellow-400 text-gray-900' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>{icon}<span className="ml-4 font-semibold">{label}</span></button>);
+
+            return (
+                <div className="flex h-screen bg-yellow-50 dark:bg-gray-900">
+                    {modal === 'job' && <CreateJobModal isOpen={true} onClose={() => setModal(null)} authToken={authToken} onActionSuccess={fetchData} />}
+                    {modal === 'equipment' && <CreateEquipmentModal isOpen={true} onClose={() => setModal(null)} authToken={authToken} onActionSuccess={fetchData} />}
+                    {modal === 'personnel' && <CreatePersonnelModal isOpen={true} onClose={() => setModal(null)} authToken={authToken} onActionSuccess={fetchData} />}
+                    {modal === 'maintenance' && <LogMaintenanceModal isOpen={true} onClose={() => setModal(null)} authToken={authToken} onActionSuccess={fetchData} />}
+                    <MaintenanceDetailModal log={viewingLog} onClose={() => setViewingLog(null)} />
+                    <EquipmentDetailModal equipmentId={viewingEquipmentId} allEquipment={data.equipment} allJobs={data.jobs} allLogs={data.maintenanceLogs} onClose={() => setViewingEquipmentId(null)} />
+                    <PersonnelDetailModal personnelId={viewingPersonnelId} allPersonnel={data.personnel} allJobs={data.jobs} allLogs={data.maintenanceLogs} onClose={() => setViewingPersonnelId(null)} />
+                    <JobDetailModal jobId={viewingJobId} allJobs={data.jobs} allLogs={data.maintenanceLogs} onClose={() => setViewingJobId(null)} />
+
+                    <aside className="w-64 bg-white dark:bg-gray-800 shadow-md flex flex-col">
+                        <div className="p-6 flex items-center gap-3 border-b border-gray-200 dark:border-gray-700"><svg className="h-10 w-10 text-yellow-500" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M112 16H48L80 64H16V112H80L48 64H112V16Z" fill="currentColor"/></svg><span className="text-2xl font-bold text-gray-800 dark:text-white">Zeltron</span></div>
+                        <nav className="flex-1 p-4 space-y-2">
+                            <NavLink view="overview" icon={<HomeIcon />} label="Overview" />
+                            <NavLink view="map" icon={<MapIcon />} label="Live Map" />
+                            <NavLink view="jobs" icon={<ClipboardIcon />} label="Jobs" />
+                            <NavLink view="equipment" icon={<TruckIcon />} label="Equipment" />
+                            <NavLink view="maintenance" icon={<WrenchIcon />} label="Maintenance" />
+                            {canManage && <NavLink view="personnel" icon={<UsersIcon />} label="Personnel" />}
+                        </nav>
+                        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                             <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                                <NavLink view="about" icon={<InfoIcon />} label="About" />
+                                <NavLink view="support" icon={<SupportIcon />} label="Support" />
+                                <NavLink view="faq" icon={<FaqIcon />} label="FAQ" />
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <p className="font-semibold text-gray-800 dark:text-white">{user.first_name || user.username}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{user.personnel?.role}</p>
+                            </div>
+                            <button onClick={onLogout} className="flex items-center w-full text-left px-4 py-3 mt-2 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition">
+                                <LogoutIcon />
+                                <span className="ml-4 font-semibold">Logout</span>
+                            </button>
+                        </div>
+                    </aside>
+
+                    <main className="flex-1 p-8 overflow-y-auto"><div className="flex justify-between items-center mb-8"><h1 className="text-3xl font-bold text-gray-800 dark:text-white capitalize">{activeView.replace('_', ' ')}</h1>{canManage && (<div className="flex gap-2"><button onClick={() => setModal('job')} className="flex items-center px-4 py-2 rounded-lg bg-yellow-500 text-gray-900 font-semibold hover:bg-yellow-600 transition shadow-sm"><PlusIcon/> New Job</button><button onClick={() => setModal('equipment')} className="flex items-center px-4 py-2 rounded-lg bg-yellow-500 text-gray-900 font-semibold hover:bg-yellow-600 transition shadow-sm"><PlusIcon/> New Equipment</button><button onClick={() => setModal('personnel')} className="flex items-center px-4 py-2 rounded-lg bg-yellow-500 text-gray-900 font-semibold hover:bg-yellow-600 transition shadow-sm"><PlusIcon/> New Personnel</button><button onClick={() => setModal('maintenance')} className="flex items-center px-4 py-2 rounded-lg bg-yellow-500 text-gray-900 font-semibold hover:bg-yellow-600 transition shadow-sm"><PlusIcon/> Log Service</button></div>)}</div>
+                           {loading ? <p>Loading...</p> : error ? <p className="text-red-500">{error}</p> : (
+                                <>
+                                    {activeView === 'overview' && <OverviewPage jobs={data.jobs} equipment={data.equipment} />}
+                                    {activeView === 'map' && <LiveMapPage equipment={data.equipment} activeView={activeView} />}
+                                    {activeView === 'jobs' && <JobsPage jobs={data.jobs} user={user} authToken={authToken} onActionSuccess={fetchData} onViewDetails={setViewingJobId} />}
+                                    {activeView === 'equipment' && <EquipmentPage equipment={data.equipment} onViewHistory={setViewingEquipmentId} />}
+                                    {activeView === 'personnel' && canManage && <PersonnelPage personnel={data.personnel} onViewHistory={setViewingPersonnelId} onStatusChange={fetchData} authToken={authToken} />}
+                                    {activeView === 'maintenance' && <MaintenanceLogPage logs={data.maintenanceLogs} onViewLog={setViewingLog} />}
+                                    {activeView === 'about' && <AboutPage />}
+                                    {activeView === 'support' && <SupportPage />}
+                                    {activeView === 'faq' && <FAQPage />}
+                                </>
+                           )}
+                    </main>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [currentUser, setCurrentUser] = useState(null);
+            const [authToken, setAuthToken] = useState(null);
+
+            const handleLogin = (user, token) => {
+                setCurrentUser(user);
+                setAuthToken(token);
+            };
+
+            const handleLogout = () => {
+                setCurrentUser(null);
+                setAuthToken(null);
+            };
+
+            return (
+                <div>
+                    {currentUser && authToken ? <Dashboard user={currentUser} authToken={authToken} onLogout={handleLogout} /> : <LoginPage onLogin={handleLogin} />}
+                </div>
+            );
+        };
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+</body>
+</html>
