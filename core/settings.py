@@ -28,7 +28,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'be4dde005b7e.ngrok-free.app',  # Your current ngrok URL
+    'be4dde005b7e.ngrok-free.app,  # Your current ngrok URL
     '.ngrok-free.app',  # Allow any ngrok-free.app subdomain
     '.gitpod.io',
 ]
